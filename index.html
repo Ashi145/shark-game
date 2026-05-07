@@ -206,8 +206,8 @@ function initLevel() {
     pearls.push({ x: 60 + Math.random()*(W-120), y: 60 + Math.random()*(H-120), r: 9, pulse: Math.random()*Math.PI*2 });
   }
 
-  bubbles = Array.from({length: 20}, () => ({ // Reduced from 30 to 20 for better performance
-    x: Math.random()*W, y: 44 + Math.random()*(H-44), r: 1 + Math.random()*3, speed: 0.3 + Math.random()*0.4, opacity: 0.1 + Math.random()*0.4
+  bubbles = Array.from({length: 30}, () => ({
+    x: Math.random()*W, y: 44 + Math.random()*(H-44), r: 1 + Math.random()*3, speed: 0.2 + Math.random()*0.5, opacity: 0.1 + Math.random()*0.4
   }));
 
   corals = Array.from({length: 8}, () => ({
@@ -237,7 +237,7 @@ window.addEventListener('keyup', e => { keys[e.key] = false; });
 
 function updatePlayer() {
   if (!player) return;
-  const spd = 5.5; // Increased from 3.2 to 5.5 for faster movement
+  const spd = 3.2;
   let dx = 0, dy = 0;
   if (keys['ArrowLeft'] || keys['a'] || keys['A']) dx -= 1;
   if (keys['ArrowRight'] || keys['d'] || keys['D']) dx += 1;
@@ -247,25 +247,24 @@ function updatePlayer() {
   if (mouse.active) {
     const mdx = mouse.x - player.x, mdy = mouse.y - player.y;
     const md = Math.sqrt(mdx*mdx + mdy*mdy);
-    if (md > 5) { dx = mdx/md; dy = mdy/md; } // Reduced threshold from 8 to 5 for better mouse response
+    if (md > 8) { dx = mdx/md; dy = mdy/md; }
   }
 
   if (dx || dy) {
     const len = Math.sqrt(dx*dx+dy*dy);
-    player.vx += (dx/len) * spd * 0.35; // Increased acceleration from 0.25 to 0.35
-    player.vy += (dy/len) * spd * 0.35;
+    player.vx += (dx/len) * spd * 0.25;
+    player.vy += (dy/len) * spd * 0.25;
     player.angle = Math.atan2(dy, dx);
   }
 
-  player.vx *= 0.92; // Reduced friction from 0.87 to 0.92 for faster movement
-  player.vy *= 0.92;
+  player.vx *= 0.87; player.vy *= 0.87;
   player.x = Math.max(20, Math.min(W-20, player.x + player.vx));
   player.y = Math.max(54, Math.min(H-20, player.y + player.vy));
   if (player.invincible > 0) player.invincible--;
 
   player.bubbleTimer++;
-  if (player.bubbleTimer % 12 === 0) { // Reduced bubble timer from 18 to 12 for better performance
-    particles.push({ x: player.x + (Math.random()-0.5)*10, y: player.y - 10, r: 2 + Math.random()*2, vy: -0.8 - Math.random(), vx: (Math.random()-0.5)*0.5, life: 40, type: 'bubble' });
+  if (player.bubbleTimer % 18 === 0) {
+    particles.push({ x: player.x + (Math.random()-0.5)*10, y: player.y - 10, r: 2 + Math.random()*2, vy: -0.8 - Math.random(), vx: (Math.random()-0.5)*0.5, life: 60, type: 'bubble' });
   }
 }
 
@@ -1144,7 +1143,6 @@ function loop() {
   frameCount++;
   ctx.clearRect(0, 0, W, H);
   if (state === "play" && player) {
-    // Optimized rendering order - draw background first
     drawBackground();
     drawBubbles();
     drawParticles();
@@ -1152,8 +1150,6 @@ function loop() {
     sharks.forEach(drawShark);
     drawPlayer();
     drawHUD();
-    
-    // Update physics after rendering
     updatePlayer();
     updateSharks();
     updatePearls();
@@ -1163,25 +1159,10 @@ function loop() {
   gameTick = requestAnimationFrame(loop);
 }
 
-// Performance optimization - reduce particle count for mobile
-function optimizeForMobile() {
-  if (window.innerWidth < 768) {
-    // Reduce particle effects on mobile for better performance
-    particles = particles.slice(0, 50); // Limit particles to 50 max
-    bubbles = bubbles.slice(0, 20); // Limit bubbles to 20 max
-  }
-}
-
-// Call optimization on resize
-window.addEventListener('resize', optimizeForMobile);
-
 loop();
 
 // Load saved progress when page loads
-window.addEventListener('load', () => {
-  loadSavedProgress();
-  optimizeForMobile(); // Apply mobile optimizations on load
-});
+window.addEventListener('load', loadSavedProgress);
 </script>
 </body>
 </html>
