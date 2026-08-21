@@ -25,7 +25,7 @@
   <FilesMatch "\.(html|htm)$">
     Header set Cache-Control "max-age=3600, must-revalidate"
   </FilesMatch>
-  
+
   # Static assets - long cache
   <FilesMatch "\.(css|js|png|jpg|jpeg|gif|svg|ico|woff2|woff|ttf|eot)$">
     Header set Cache-Control "max-age=31536000, public, immutable"
@@ -60,13 +60,13 @@ Options -Indexes
   Require all denied
 </FilesMatch>
 
-# Block access to backup files
+# Block access to backup and sensitive files
 <FilesMatch "\.(bak|orig|save|swp|sql|db)$">
   Require all denied
 </FilesMatch>
 
 # Custom 404 page
-ErrorDocument 404 /index.html
+ErrorDocument 404 /sharkgame/index.html
 
 # === API ROUTING ===
 # PHP API - no caching for dynamic content
@@ -81,8 +81,11 @@ ErrorDocument 404 /index.html
   Require all denied
 </Files>
 
-# Rewrite for clean API URLs (optional)
+# Rewrite for clean API URLs
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteRule ^api/([a-zA-Z]+)$ api/index.php?action=$1 [L,QSA]
+  RewriteBase /sharkgame/
+
+  # Clean API URLs: /sharkgame/api/register -> /sharkgame/api/index.php?action=register
+  RewriteRule ^api/([a-zA-Z_]+)$ api/index.php?action=$1 [L,QSA]
 </IfModule>

@@ -540,8 +540,9 @@ function updatePearls() {
       document.getElementById('scoreVal').textContent = score;
       oxygen = Math.min(maxOxygen, oxygen + 12);
       if (pearlsCollected >= pearlsNeeded) {
-        saveProgress(); // Save progress after completing each level
         level++;
+        saveProgress();
+        API.saveScore(level, score, pearlsCollected, 0, Math.floor((Date.now() - startTime) / 1000), 1);
         if (level >= LEVELS.length) { winGame(); return; }
         initLevel();
       }
@@ -1183,7 +1184,7 @@ window.addEventListener('load', loadSavedProgress);
 // SERVER - PLAYER TRACKING & LEADERBOARD
 // ============================================
 const API = (() => {
-  const API_URL = window.location.origin + '/sharkgame/api/index.php';
+  const API_URL = 'api/index.php';
   const PLAYER_ID_KEY = 'sharkTankPlayerId';
   const SESSION_KEY = 'sharkTankSession';
   let sessionToken = '';
@@ -1246,6 +1247,9 @@ const API = (() => {
     if (res && res.online !== undefined) {
       document.getElementById('onlineCount').textContent = res.online;
     }
+    if (res && res.session_token) {
+      sessionToken = res.session_token;
+    }
   }
 
   function startPing() {
@@ -1254,12 +1258,13 @@ const API = (() => {
     pingInterval = setInterval(ping, 5000);
   }
 
-  async function saveScore(lvl, sc, pearls, playTime, completed) {
+  async function saveScore(lvl, sc, pearls, sharksDodged, playTime, completed) {
     return await call('save_score', {
       player_id: getPlayerId(),
       level: lvl,
       score: sc,
       pearls: pearls,
+      sharks_dodged: sharksDodged,
       play_time: playTime,
       completed: completed
     });
@@ -1305,21 +1310,18 @@ startGame = async function() {
 const originalInitLevel = initLevel;
 initLevel = function() {
   originalInitLevel();
-  if (level > 0) {
-    API.saveScore(level, score, pearlsCollected, Math.floor((Date.now() - startTime) / 1000), 0);
-  }
 };
 
 const originalGameOver = gameOver;
 gameOver = async function() {
-  await API.saveScore(level + 1, score, pearlsCollected, Math.floor((Date.now() - startTime) / 1000), 0);
+  await API.saveScore(level + 1, score, pearlsCollected, 0, Math.floor((Date.now() - startTime) / 1000), 0);
   API.trackEvent('game_over', { level: level + 1, score: score });
   originalGameOver();
 };
 
 const originalWinGame = winGame;
 winGame = async function() {
-  await API.saveScore(24, score, pearlsCollected, Math.floor((Date.now() - startTime) / 1000), 1);
+  await API.saveScore(24, score, pearlsCollected, 0, Math.floor((Date.now() - startTime) / 1000), 1);
   API.trackEvent('game_win', { score: score, time: Math.floor((Date.now() - startTime) / 1000) });
   originalWinGame();
 };

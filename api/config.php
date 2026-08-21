@@ -1,13 +1,14 @@
 <?php
 // ============================================
 // DATABASE CONFIGURATION
-// Update these with your cPanel MySQL credentials
+// cPanel: MySQL Databases → Create DB + User
+// Then update credentials below or use env vars
 // ============================================
 
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'sharktank_db');
-define('DB_USER', 'sharktank_user');  // Create this user in cPanel → MySQL Databases
-define('DB_PASS', 'YOUR_PASSWORD_HERE'); // Set a strong password
+define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
+define('DB_NAME', getenv('DB_NAME') ?: 'sharktank_db');
+define('DB_USER', getenv('DB_USER') ?: 'sharktank_user');
+define('DB_PASS', getenv('DB_PASS') ?: 'YOUR_PASSWORD_HERE');
 
 // CORS - allow game to call API
 header('Access-Control-Allow-Origin: *');
@@ -20,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-// Database connection
+// Database connection with retry
 function getDB() {
     static $pdo = null;
     if ($pdo === null) {
@@ -30,10 +31,11 @@ function getDB() {
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false,
+                PDO::ATTR_TIMEOUT => 5,
             ]);
         } catch (PDOException $e) {
             http_response_code(500);
-            echo json_encode(['error' => 'Database connection failed']);
+            echo json_encode(['error' => 'Database connection failed', 'detail' => $e->getMessage()]);
             exit;
         }
     }

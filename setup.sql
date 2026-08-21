@@ -1,9 +1,8 @@
 -- ============================================
 -- SHARK TANK - DATABASE SETUP
--- Run this in cPanel → MySQL Databases → phpMyAdmin
+-- Run this in cPanel > phpMyAdmin > Import
+-- Make sure to select sharktank_db first
 -- ============================================
-
-CREATE DATABASE IF NOT EXISTS sharktank_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- Players table
 CREATE TABLE IF NOT EXISTS players (
@@ -16,7 +15,8 @@ CREATE TABLE IF NOT EXISTS players (
     is_active TINYINT(1) DEFAULT 1,
     INDEX idx_player_id (player_id),
     INDEX idx_name (name),
-    INDEX idx_active (is_active)
+    INDEX idx_active (is_active),
+    INDEX idx_last_active (last_active)
 ) ENGINE=InnoDB;
 
 -- Scores / progress table
@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS scores (
     INDEX idx_player_id (player_id),
     INDEX idx_score (score DESC),
     INDEX idx_level (level_reached DESC),
-    INDEX idx_created (created_at)
+    INDEX idx_created (created_at),
+    INDEX idx_player_score (player_id, score DESC)
 ) ENGINE=InnoDB;
 
 -- Active sessions (tracks who is online)
@@ -48,7 +49,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     is_active TINYINT(1) DEFAULT 1,
     INDEX idx_token (session_token),
     INDEX idx_active (is_active),
-    INDEX idx_last_ping (last_ping)
+    INDEX idx_last_ping (last_ping),
+    INDEX idx_player_active (player_id, is_active)
 ) ENGINE=InnoDB;
 
 -- Analytics events
@@ -60,7 +62,8 @@ CREATE TABLE IF NOT EXISTS analytics (
     ip_address VARCHAR(45) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_event_type (event_type),
-    INDEX idx_created (created_at)
+    INDEX idx_created (created_at),
+    INDEX idx_event_player (event_type, player_id)
 ) ENGINE=InnoDB;
 
 -- Daily stats (aggregated)
@@ -90,7 +93,7 @@ AND last_ping > DATE_SUB(NOW(), INTERVAL 30 SECOND);
 
 -- Top leaderboard
 CREATE OR REPLACE VIEW v_leaderboard AS
-SELECT 
+SELECT
     p.player_id,
     p.name,
     MAX(s.score) as high_score,

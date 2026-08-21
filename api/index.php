@@ -16,7 +16,11 @@
 require_once __DIR__ . '/config.php';
 
 $db = getDB();
-cleanStaleSessions($db);
+
+// Only clean stale sessions occasionally (1 in 20 requests)
+if (mt_rand(1, 20) === 1) {
+    cleanStaleSessions($db);
+}
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
@@ -73,18 +77,23 @@ switch ($action) {
             respond(['error' => 'player_id required'], 400);
         }
 
+        // Generate token if not provided
+        if (empty($sessionToken)) {
+            $sessionToken = bin2hex(random_bytes(32));
+        }
+
         // Upsert session
         $stmt = $db->prepare("
             INSERT INTO sessions (player_id, session_token, ip_address, user_agent, is_active)
             VALUES (?, ?, ?, ?, 1)
             ON DUPLICATE KEY UPDATE last_ping = NOW(), is_active = 1
         ");
-        $stmt->execute([$playerId, $sessionToken ?: bin2hex(random_bytes(32)), getClientIP(), $_SERVER['HTTP_USER_AGENT'] ?? '']);
+        $stmt->execute([$playerId, $sessionToken, getClientIP(), $_SERVER['HTTP_USER_AGENT'] ?? '']);
 
         // Get online count
         $online = $db->query("SELECT COUNT(DISTINCT player_id) as cnt FROM sessions WHERE is_active = 1 AND last_ping > DATE_SUB(NOW(), INTERVAL 30 SECOND)")->fetch();
 
-        respond(['ok' => true, 'online' => $online['cnt']]);
+        respond(['ok' => true, 'online' => intval($online['cnt']), 'session_token' => $sessionToken]);
         break;
 
     // ---- LOGOUT ----
@@ -110,6 +119,7 @@ switch ($action) {
         $level = intval($input['level'] ?? 1);
         $score = intval($input['score'] ?? 0);
         $pearls = intval($input['pearls'] ?? 0);
+        $sharksDodged = intval($input['sharks_dodged'] ?? 0);
         $playTime = intval($input['play_time'] ?? 0);
         $completed = intval($input['completed'] ?? 0);
 
@@ -118,17 +128,20 @@ switch ($action) {
         }
 
         $stmt = $db->prepare("
-            INSERT INTO scores (player_id, level_reached, score, pearls_collected, play_time_seconds, completed)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO scores (player_id, level_reached, score, pearls_collected, sharks_dodged, play_time_seconds, completed)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         ");
-        $stmt->execute([$playerId, $level, $score, $pearls, $playTime, $completed]);
+        $stmt->execute([$playerId, $level, $score, $pearls, $sharksDodged, $playTime, $completed]);
+
+        // Update player high score
+        $db->prepare("UPDATE players SET last_active = NOW(), is_active = 1 WHERE player_id = ?")->execute([$playerId]);
 
         // Update daily stats
         $today = date('Y-m-d');
         $db->prepare("
             INSERT INTO daily_stats (stat_date, games_completed, total_score)
             VALUES (?, ?, ?)
-            ON DUPLICATE KEY UPDATE 
+            ON DUPLICATE KEY UPDATE
                 games_completed = games_completed + VALUES(games_completed),
                 total_score = total_score + VALUES(total_score)
         ")->execute([$today, $completed, $score]);
@@ -142,7 +155,7 @@ switch ($action) {
         $offset = max(0, intval($_GET['offset'] ?? 0));
 
         $stmt = $db->prepare("
-            SELECT 
+            SELECT
                 p.player_id,
                 p.name,
                 MAX(s.score) as high_score,
@@ -166,7 +179,7 @@ switch ($action) {
     // ---- ONLINE COUNT ----
     case 'online_count':
         $online = $db->query("SELECT COUNT(DISTINCT player_id) as cnt FROM sessions WHERE is_active = 1 AND last_ping > DATE_SUB(NOW(), INTERVAL 30 SECOND)")->fetch();
-        respond(['ok' => true, 'online' => $online['cnt']]);
+        respond(['ok' => true, 'online' => intval($online['cnt'])]);
         break;
 
     // ---- SITE STATS ----
@@ -181,12 +194,12 @@ switch ($action) {
         respond([
             'ok' => true,
             'stats' => [
-                'total_players' => $totalPlayers,
-                'total_games' => $totalGames,
-                'total_score' => $totalScore,
-                'avg_level' => round($avgLevel, 1),
-                'today_visits' => $todayVisits,
-                'online_now' => $online
+                'total_players' => intval($totalPlayers),
+                'total_games' => intval($totalGames),
+                'total_score' => intval($totalScore),
+                'avg_level' => round(floatval($avgLevel), 1),
+                'today_visits' => intval($todayVisits),
+                'online_now' => intval($online)
             ]
         ]);
         break;
