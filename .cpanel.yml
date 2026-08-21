@@ -1,7 +1,7 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/ashiraf/public_html/sharkgame/
+    - export DEPLOYPATH=/home/ashiukiu/public_html/sharkgame/
     - /bin/mkdir -p $DEPLOYPATH/api/
     - /bin/cp index.html $DEPLOYPATH
     - /bin/cp .htaccess $DEPLOYPATH
