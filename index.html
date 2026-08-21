@@ -1,6 +1,17 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Shark Tank - Survive 24 deadly levels of the deep ocean. Collect pearls, dodge sharks, survive the dark.">
+<meta name="keywords" content="shark game, ocean game, survival game, browser game, html5 game">
+<meta name="author" content="Ashi145">
+<meta property="og:title" content="Shark Tank - Dive In If You Dare">
+<meta property="og:description" content="Navigate 24 increasingly deadly levels of the deep ocean.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://sharkgame.ashiraf.cc">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦈</text></svg>">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #0a0a1a; font-family: 'Courier New', monospace; overflow: hidden; }
@@ -21,6 +32,9 @@
   #overlay .btn:hover { background: rgba(126,220,255,0.12); box-shadow: 0 0 20px rgba(126,220,255,0.3); }
   #levelBanner { position: fixed; top: 55px; left: 50%; transform: translateX(-50%); background: rgba(0,10,30,0.95); border: 1px solid #1a4a7a; color: #7edcff; padding: 8px 28px; font-size: 13px; letter-spacing: 3px; z-index: 15; opacity: 0; transition: opacity 0.4s; border-radius: 2px; }
   #controls { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); color: #2a5a7a; font-size: 10px; letter-spacing: 1px; z-index: 10; }
+  #playerCount { position: fixed; top: 10px; right: 16px; z-index: 25; color: #4a8ab0; font-size: 11px; letter-spacing: 1px; display: flex; align-items: center; gap: 6px; }
+  #playerCount .dot { width: 6px; height: 6px; background: #00ff88; border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 </style>
 </head>
 <body>
@@ -49,6 +63,7 @@
 <canvas id="gameCanvas"></canvas>
 <div id="levelBanner">LEVEL 1 — THE SHALLOWS</div>
 <div id="controls">WASD / ARROW KEYS or MOUSE to move · Dodge sharks · Collect pearls</div>
+<div id="playerCount"><span class="dot"></span> <span id="onlineCount">1</span> playing now</div>
 <div id="overlay">
   <h1>SHARK TANK</h1>
   <h2>— DIVE IN IF YOU DARE —</h2>
@@ -1163,6 +1178,108 @@ loop();
 
 // Load saved progress when page loads
 window.addEventListener('load', loadSavedProgress);
+
+// ============================================
+// ANALYTICS & PLAYER TRACKING
+// ============================================
+const Analytics = (() => {
+  const SESSION_KEY = 'sharkTankSession';
+  const STATS_KEY = 'sharkTankStats';
+  const PLAYER_ID_KEY = 'sharkTankPlayerId';
+
+  function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+  }
+
+  function getPlayerId() {
+    let id = localStorage.getItem(PLAYER_ID_KEY);
+    if (!id) { id = generateId(); localStorage.setItem(PLAYER_ID_KEY, id); }
+    return id;
+  }
+
+  function getStats() {
+    const raw = localStorage.getItem(STATS_KEY);
+    return raw ? JSON.parse(raw) : { gamesPlayed: 0, totalScore: 0, highestLevel: 0, firstVisit: Date.now(), lastVisit: Date.now() };
+  }
+
+  function saveStats(stats) {
+    stats.lastVisit = Date.now();
+    localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+  }
+
+  function trackVisit() {
+    const stats = getStats();
+    saveStats(stats);
+    return { playerId: getPlayerId(), stats };
+  }
+
+  function trackGameStart() {
+    const stats = getStats();
+    stats.gamesPlayed++;
+    saveStats(stats);
+  }
+
+  function trackLevelComplete(lvl, sc) {
+    const stats = getStats();
+    stats.highestLevel = Math.max(stats.highestLevel, lvl);
+    stats.totalScore = Math.max(stats.totalScore, sc);
+    saveStats(stats);
+  }
+
+  // Lightweight online counter using BroadcastChannel
+  let onlineCount = 1;
+  let bc = null;
+  try { bc = new BroadcastChannel('sharkTankOnline'); } catch(e) {}
+
+  const activeTabs = new Map();
+  const myTab = generateId();
+
+  function updateOnlineCount() {
+    activeTabs.set(myTab, Date.now());
+    // Clean stale tabs (>10s old)
+    const now = Date.now();
+    for (const [k, v] of activeTabs) { if (now - v > 10000) activeTabs.delete(k); }
+    onlineCount = Math.max(1, activeTabs.size);
+    document.getElementById('onlineCount').textContent = onlineCount;
+  }
+
+  if (bc) {
+    bc.onmessage = (e) => {
+      if (e.data.type === 'heartbeat') { activeTabs.set(e.data.tab, e.data.ts); updateOnlineCount(); }
+      if (e.data.type === 'join') { activeTabs.set(e.data.tab, e.data.ts); bc.postMessage({ type: 'heartbeat', tab: myTab, ts: Date.now() }); updateOnlineCount(); }
+      if (e.data.type === 'leave') { activeTabs.delete(e.data.tab); updateOnlineCount(); }
+    };
+    bc.postMessage({ type: 'join', tab: myTab, ts: Date.now() });
+  }
+
+  // Heartbeat every 3s
+  setInterval(() => {
+    if (bc) bc.postMessage({ type: 'heartbeat', tab: myTab, ts: Date.now() });
+    updateOnlineCount();
+  }, 3000);
+
+  window.addEventListener('beforeunload', () => {
+    if (bc) bc.postMessage({ type: 'leave', tab: myTab });
+  });
+
+  return { trackVisit, trackGameStart, trackLevelComplete, getStats, getPlayerId };
+})();
+
+// Initialize tracking
+Analytics.trackVisit();
+
+// Hook into game events
+const originalStartGame = startGame;
+startGame = function() {
+  Analytics.trackGameStart();
+  originalStartGame();
+};
+
+const originalInitLevel = initLevel;
+initLevel = function() {
+  originalInitLevel();
+  if (level > 0) Analytics.trackLevelComplete(level, score);
+};
 </script>
 </body>
 </html>

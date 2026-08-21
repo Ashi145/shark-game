@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://sharkgame.ashiraf.cc/sitemap.xml

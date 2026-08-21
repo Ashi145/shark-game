@@ -1,0 +1,38 @@
+name: Deploy to cPanel
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to cPanel
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload files via FTP/SFTP
+        uses: SamKirkland/FTP-Deploy-Action@4.3.4
+        with:
+          server: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          protocol: ${{ secrets.CPANEL_PROTOCOL || 'ftp' }}
+          port: ${{ secrets.CPANEL_PORT || '21' }}
+          local-dir: ./
+          server-dir: /public_html/sharkgame/
+          exclude: |
+            .git/
+            .github/
+            .gitignore
+            README*
+            LICENSE*
+            node_modules/
+            .wrangler/
+            .dev.vars*
+            .env*
+
+      - name: Deployment complete
+        run: echo "Deployed to sharkgame.ashiraf.cc"
