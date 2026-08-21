@@ -1180,12 +1180,15 @@ loop();
 window.addEventListener('load', loadSavedProgress);
 
 // ============================================
-// ANALYTICS & PLAYER TRACKING
+// SERVER - PLAYER TRACKING & LEADERBOARD
 // ============================================
-const Analytics = (() => {
-  const SESSION_KEY = 'sharkTankSession';
-  const STATS_KEY = 'sharkTankStats';
+const API = (() => {
+  const API_URL = window.location.origin + '/sharkgame/api/index.php';
   const PLAYER_ID_KEY = 'sharkTankPlayerId';
+  const SESSION_KEY = 'sharkTankSession';
+  let sessionToken = '';
+  let pingInterval = null;
+  let startTime = Date.now();
 
   function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
@@ -1197,88 +1200,128 @@ const Analytics = (() => {
     return id;
   }
 
-  function getStats() {
-    const raw = localStorage.getItem(STATS_KEY);
-    return raw ? JSON.parse(raw) : { gamesPlayed: 0, totalScore: 0, highestLevel: 0, firstVisit: Date.now(), lastVisit: Date.now() };
+  function getSessionToken() {
+    let t = sessionStorage.getItem(SESSION_KEY);
+    if (!t) { t = generateId() + generateId(); sessionStorage.setItem(SESSION_KEY, t); }
+    return t;
   }
 
-  function saveStats(stats) {
-    stats.lastVisit = Date.now();
-    localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+  async function call(action, data = {}, method = 'POST') {
+    try {
+      if (method === 'GET') {
+        const params = new URLSearchParams(data);
+        const res = await fetch(`${API_URL}?action=${action}&${params}`, { method: 'GET' });
+        return await res.json();
+      } else {
+        const res = await fetch(`${API_URL}?action=${action}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('API call failed:', action, e);
+      return { error: 'offline' };
+    }
   }
 
-  function trackVisit() {
-    const stats = getStats();
-    saveStats(stats);
-    return { playerId: getPlayerId(), stats };
+  async function register(name) {
+    const playerId = getPlayerId();
+    await call('register', { player_id: playerId, name: name });
+    sessionToken = getSessionToken();
+    await call('ping', { player_id: playerId, session_token: sessionToken });
+    startPing();
+    return playerId;
   }
 
-  function trackGameStart() {
-    const stats = getStats();
-    stats.gamesPlayed++;
-    saveStats(stats);
+  async function ping() {
+    const playerId = getPlayerId();
+    const res = await call('ping', {
+      player_id: playerId,
+      session_token: sessionToken,
+      level: level + 1,
+      score: score
+    });
+    if (res && res.online !== undefined) {
+      document.getElementById('onlineCount').textContent = res.online;
+    }
   }
 
-  function trackLevelComplete(lvl, sc) {
-    const stats = getStats();
-    stats.highestLevel = Math.max(stats.highestLevel, lvl);
-    stats.totalScore = Math.max(stats.totalScore, sc);
-    saveStats(stats);
+  function startPing() {
+    if (pingInterval) clearInterval(pingInterval);
+    ping();
+    pingInterval = setInterval(ping, 5000);
   }
 
-  // Lightweight online counter using BroadcastChannel
-  let onlineCount = 1;
-  let bc = null;
-  try { bc = new BroadcastChannel('sharkTankOnline'); } catch(e) {}
-
-  const activeTabs = new Map();
-  const myTab = generateId();
-
-  function updateOnlineCount() {
-    activeTabs.set(myTab, Date.now());
-    // Clean stale tabs (>10s old)
-    const now = Date.now();
-    for (const [k, v] of activeTabs) { if (now - v > 10000) activeTabs.delete(k); }
-    onlineCount = Math.max(1, activeTabs.size);
-    document.getElementById('onlineCount').textContent = onlineCount;
+  async function saveScore(lvl, sc, pearls, playTime, completed) {
+    return await call('save_score', {
+      player_id: getPlayerId(),
+      level: lvl,
+      score: sc,
+      pearls: pearls,
+      play_time: playTime,
+      completed: completed
+    });
   }
 
-  if (bc) {
-    bc.onmessage = (e) => {
-      if (e.data.type === 'heartbeat') { activeTabs.set(e.data.tab, e.data.ts); updateOnlineCount(); }
-      if (e.data.type === 'join') { activeTabs.set(e.data.tab, e.data.ts); bc.postMessage({ type: 'heartbeat', tab: myTab, ts: Date.now() }); updateOnlineCount(); }
-      if (e.data.type === 'leave') { activeTabs.delete(e.data.tab); updateOnlineCount(); }
-    };
-    bc.postMessage({ type: 'join', tab: myTab, ts: Date.now() });
+  async function getLeaderboard(limit = 50) {
+    return await call('leaderboard', { limit: limit }, 'GET');
   }
 
-  // Heartbeat every 3s
-  setInterval(() => {
-    if (bc) bc.postMessage({ type: 'heartbeat', tab: myTab, ts: Date.now() });
-    updateOnlineCount();
-  }, 3000);
+  async function getStats() {
+    return await call('stats', {}, 'GET');
+  }
 
-  window.addEventListener('beforeunload', () => {
-    if (bc) bc.postMessage({ type: 'leave', tab: myTab });
+  async function trackEvent(eventName, data = {}) {
+    await call('event', { event: eventName, player_id: getPlayerId(), data: data });
+  }
+
+  async function logout() {
+    if (pingInterval) clearInterval(pingInterval);
+    await call('logout', { player_id: getPlayerId(), session_token: sessionToken });
+  }
+
+  window.addEventListener('beforeunload', () => { logout(); });
+  window.addEventListener('visibilitychange', () => {
+    if (document.hidden) { logout(); } else { register(playerName || 'Guest'); }
   });
 
-  return { trackVisit, trackGameStart, trackLevelComplete, getStats, getPlayerId };
+  return { register, ping, saveScore, getLeaderboard, getStats, trackEvent, logout, getPlayerId };
 })();
 
-// Initialize tracking
-Analytics.trackVisit();
+// Initialize: register visit
+API.trackEvent('visit', { url: window.location.href, referrer: document.referrer });
+if (playerName) API.register(playerName);
 
 // Hook into game events
 const originalStartGame = startGame;
-startGame = function() {
-  Analytics.trackGameStart();
+startGame = async function() {
+  await API.register(playerName || 'Guest');
+  API.trackEvent('game_start', { name: playerName });
   originalStartGame();
 };
 
 const originalInitLevel = initLevel;
 initLevel = function() {
   originalInitLevel();
-  if (level > 0) Analytics.trackLevelComplete(level, score);
+  if (level > 0) {
+    API.saveScore(level, score, pearlsCollected, Math.floor((Date.now() - startTime) / 1000), 0);
+  }
+};
+
+const originalGameOver = gameOver;
+gameOver = async function() {
+  await API.saveScore(level + 1, score, pearlsCollected, Math.floor((Date.now() - startTime) / 1000), 0);
+  API.trackEvent('game_over', { level: level + 1, score: score });
+  originalGameOver();
+};
+
+const originalWinGame = winGame;
+winGame = async function() {
+  await API.saveScore(24, score, pearlsCollected, Math.floor((Date.now() - startTime) / 1000), 1);
+  API.trackEvent('game_win', { score: score, time: Math.floor((Date.now() - startTime) / 1000) });
+  originalWinGame();
 };
 </script>
 </body>

@@ -67,3 +67,22 @@ Options -Indexes
 
 # Custom 404 page
 ErrorDocument 404 /index.html
+
+# === API ROUTING ===
+# PHP API - no caching for dynamic content
+<FilesMatch "\.php$">
+  Header set Cache-Control "no-cache, no-store, must-revalidate"
+  Header set Pragma "no-cache"
+  Header set Expires "0"
+</FilesMatch>
+
+# Block direct access to config
+<Files "config.php">
+  Require all denied
+</Files>
+
+# Rewrite for clean API URLs (optional)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^api/([a-zA-Z]+)$ api/index.php?action=$1 [L,QSA]
+</IfModule>
