@@ -8,7 +8,7 @@
 define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
 define('DB_NAME', getenv('DB_NAME') ?: 'sharktank_db');
 define('DB_USER', getenv('DB_USER') ?: 'sharktank_user');
-define('DB_PASS', getenv('DB_PASS') ?: null);
+define('DB_PASS', getenv('DB_PASS'));
 
 // CORS - allow game to call API
 header('Access-Control-Allow-Origin: *');
@@ -35,7 +35,7 @@ function getDB() {
             ]);
         } catch (PDOException $e) {
             http_response_code(500);
-            echo json_encode(['error' => 'Database connection failed', 'detail' => $e->getMessage()]);
+            echo json_encode(['error' => 'Database connection failed']);
             exit;
         }
     }
