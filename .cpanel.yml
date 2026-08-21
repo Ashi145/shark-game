@@ -5,12 +5,14 @@ deployment:
     - /bin/mkdir -p $DEPLOYPATH/api/
     - /bin/cp index.html $DEPLOYPATH
     - /bin/cp .htaccess $DEPLOYPATH
+    - /bin/cp favicon.svg $DEPLOYPATH
     - /bin/cp robots.txt $DEPLOYPATH
     - /bin/cp sitemap.xml $DEPLOYPATH
     - /bin/cp setup.sql $DEPLOYPATH
     - /bin/cp api/config.php $DEPLOYPATH/api/
     - /bin/cp api/index.php $DEPLOYPATH/api/
     - /bin/chmod 644 $DEPLOYPATH/.htaccess
+    - /bin/chmod 644 $DEPLOYPATH/favicon.svg
     - /bin/chmod 644 $DEPLOYPATH/api/config.php
     - /bin/chmod 644 $DEPLOYPATH/api/index.php
     - /bin/chmod 644 $DEPLOYPATH/index.html
