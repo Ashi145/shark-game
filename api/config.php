@@ -8,7 +8,7 @@
 define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
 define('DB_NAME', getenv('DB_NAME') ?: 'sharktank_db');
 define('DB_USER', getenv('DB_USER') ?: 'sharktank_user');
-define('DB_PASS', getenv('DB_PASS') ?: 'YOUR_PASSWORD_HERE');
+define('DB_PASS', getenv('DB_PASS') ?: 'Range12!rover');
 
 // CORS - allow game to call API
 header('Access-Control-Allow-Origin: *');
