@@ -128,6 +128,7 @@ let frameCount = 0, pearlsCollected = 0, pearlsNeeded = 5;
 let gameTick = null;
 let playerName = "";
 let savedProgress = null;
+let startTime = Date.now();
 
 function loadSavedProgress() {
   const saved = localStorage.getItem('sharkTankProgress');
@@ -548,6 +549,7 @@ function updatePearls() {
         API.saveScore(level, score, pearlsCollected, 0, Math.floor((Date.now() - startTime) / 1000), 1);
         if (level >= LEVELS.length) { winGame(); return; }
         initLevel();
+        return;
       }
     }
   }
@@ -1192,7 +1194,6 @@ const API = (() => {
   const SESSION_KEY = 'sharkTankSession';
   let sessionToken = '';
   let pingInterval = null;
-  let startTime = Date.now();
 
   function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
